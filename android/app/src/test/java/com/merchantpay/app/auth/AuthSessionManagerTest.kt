@@ -137,7 +137,7 @@ class AuthSessionManagerTest {
         kotlinx.coroutines.yield()
         coordinator.signOutLocally()
         exchange.complete(grant())
-        assertEquals(SignInResult.SUPERSEDED, signingIn.await())
+        assertEquals(SignInResult.NOT_ESTABLISHED, signingIn.await())
         assertNull(sessions.accessToken())
     }
 
