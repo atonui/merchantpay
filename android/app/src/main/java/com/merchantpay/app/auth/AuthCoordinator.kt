@@ -11,7 +11,7 @@ fun interface ExternalAuthorizationFlow {
     suspend fun authorize(): AccessTokenGrant
 }
 
-enum class SignInResult { ESTABLISHED, FAILED, SUPERSEDED }
+enum class SignInResult { ESTABLISHED, FAILED, NOT_ESTABLISHED }
 
 /**
  * Coordinates local state without interpreting a browser redirect as an access
@@ -29,7 +29,7 @@ class AuthCoordinator(
             if (sessions.completeSignIn(attempt, grant)) {
                 SignInResult.ESTABLISHED
             } else {
-                SignInResult.SUPERSEDED
+                SignInResult.NOT_ESTABLISHED
             }
         } catch (cancelled: CancellationException) {
             sessions.failSignIn(attempt)
