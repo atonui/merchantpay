@@ -1,0 +1,51 @@
+name: Payment simulation regression
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  corrected-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test runner
+        run: python -m pip install 'pytest>=8,<10'
+      - name: Corrected simulation regressions only
+        run: python -m pytest -q experiments/payment_race/tests/test_corrected.py
+  vulnerable-specimen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test runner
+        run: python -m pip install 'pytest>=8,<10'
+      - name: Confirm known failures remain detectable
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q experiments/payment_race/tests/test_idempotency.py > vulnerable-output.txt 2>&1
+          status=$?
+          set -e
+          cat vulnerable-output.txt
+          if [ "$status" -eq 0 ]; then
+            echo "Unexpected pass: vulnerable specimen no longer exposes the expected bugs"
+            exit 1
+          fi
+          if [ "$status" -ne 1 ]; then
+            echo "Tests errored instead of demonstrating assertion failures"
+            exit 1
+          fi
+          if ! grep -q '2 failed' vulnerable-output.txt; then
+            echo "Expected exactly two failing regression assertions"
+            exit 1
+          fi
