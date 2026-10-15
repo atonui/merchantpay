@@ -18,11 +18,15 @@ The launcher shows a demo merchant and lets you create a simulated `created` int
 - `data/PaymentApiClient.kt`: future HTTPS client for the authenticated FastAPI API, **not wired to the UI**.
 - `auth/AuthSessionManager.kt`: memory-only access-token lifecycle, local logout, expiration and login-generation fencing; no real login or persistence.
 - `auth/AuthCoordinator.kt`: interface for a future browser-based OIDC code/PKCE adapter, **not implemented or connected**.
+- `data/PaymentAttemptStore.kt`: transactional SQLite journal for stable merchant-scoped idempotency keys.
+- `data/DurablePaymentSubmission.kt`: opt-in, explicit request dispatch/retry coordinator, **not connected to the demo UI**.
 - `src/test`: amount-validation and MockWebServer API-client unit tests.
 
 ## Known gaps
-No real login or identity provider, remote token revocation, merchant provisioning, persisted idempotency keys, connectivity, NFC, M-Pesa, card acceptance or production signing. A Gradle wrapper has not yet been committed; GitHub Actions installs a pinned Gradle version.
+No real login or identity provider, remote token revocation, merchant provisioning, connectivity, NFC, M-Pesa, card acceptance or production signing. Local idempotency records are now persisted in a sandbox-only SQLite journal, but the demo UI does not use that journal and no network requests are enabled. A Gradle wrapper has not yet been committed; GitHub Actions installs a pinned Gradle version.
 
 See `docs/ANDROID-ADR.md` for trust boundaries and planned gates.
 
 See `docs/MOBILE-IDENTITY-ADR.md` for the OIDC issuer/redirect and backend token-contract decisions that must be made before login can be enabled.
+
+See `docs/ANDROID-IDEMPOTENCY-ADR.md` for local attempt recovery, retention, at-rest security and process-death limitations.
