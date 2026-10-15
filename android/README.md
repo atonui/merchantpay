@@ -16,9 +16,13 @@ The launcher shows a demo merchant and lets you create a simulated `created` int
 - `domain/KesAmount.kt`: exact KES minor-unit parsing.
 - `data/PaymentRepository.kt`: repository contract and offline demo implementation.
 - `data/PaymentApiClient.kt`: future HTTPS client for the authenticated FastAPI API, **not wired to the UI**.
+- `auth/AuthSessionManager.kt`: memory-only access-token lifecycle, local logout, expiration and login-generation fencing; no real login or persistence.
+- `auth/AuthCoordinator.kt`: interface for a future browser-based OIDC code/PKCE adapter, **not implemented or connected**.
 - `src/test`: amount-validation and MockWebServer API-client unit tests.
 
 ## Known gaps
-No real login, merchant provisioning, persisted idempotency keys, connectivity, NFC, M-Pesa, card acceptance or production signing. A Gradle wrapper has not yet been committed; GitHub Actions installs a pinned Gradle version.
+No real login or identity provider, remote token revocation, merchant provisioning, persisted idempotency keys, connectivity, NFC, M-Pesa, card acceptance or production signing. A Gradle wrapper has not yet been committed; GitHub Actions installs a pinned Gradle version.
 
 See `docs/ANDROID-ADR.md` for trust boundaries and planned gates.
+
+See `docs/MOBILE-IDENTITY-ADR.md` for the OIDC issuer/redirect and backend token-contract decisions that must be made before login can be enabled.
