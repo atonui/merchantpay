@@ -172,7 +172,11 @@ class DurablePaymentSubmissionTest {
 
     @Test fun cancellation_marks_request_uncertain() = runBlocking {
         val request = requestId()
-        val api = PaymentRepository { _, _, _ -> throw CancellationException("simulated cancellation") }
+        val api = object : PaymentRepository {
+            override suspend fun createIntent(merchantId: String, amountMinor: Long, idempotencyKey: String): PaymentIntent {
+                throw CancellationException("simulated cancellation")
+            }
+        }
         val coordinator = DurablePaymentSubmission(store, api)
         try { coordinator.submit(merchant, request, 100); fail("Expected cancellation") }
         catch (_: CancellationException) { }
@@ -180,7 +184,12 @@ class DurablePaymentSubmissionTest {
     }
 
     @Test fun cannot_retry_nonexistent_request() = runBlocking {
-        val api = PaymentRepository { _, _, _ -> fail("Network should not be called"); error("unreachable") }
+        val api = object : PaymentRepository {
+            override suspend fun createIntent(merchantId: String, amountMinor: Long, idempotencyKey: String): PaymentIntent {
+                fail("Network should not be called")
+                error("unreachable")
+            }
+        }
         val coordinator = DurablePaymentSubmission(store, api)
         try { coordinator.retryExisting(merchant, requestId()); fail("Expected unknown request") }
         catch (_: IllegalArgumentException) { }
