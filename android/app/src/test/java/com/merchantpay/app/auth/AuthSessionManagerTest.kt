@@ -3,6 +3,7 @@ package com.merchantpay.app.auth
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -51,13 +52,22 @@ class AuthSessionManagerTest {
         assertNull(sessions.accessToken())
     }
 
+    private class AdjustableClock(private var current: Instant) : Clock() {
+        override fun instant(): Instant = current
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+        override fun withZone(zone: ZoneId): Clock = Clock.fixed(current, zone)
+        fun advanceSeconds(seconds: Long) { current = current.plusSeconds(seconds) }
+    }
+
     @Test fun expiration_clears_token_at_read_time() {
-        val sessions = AuthSessionManager(clock, Duration.ZERO)
+        val adjustableClock = AdjustableClock(now)
+        val sessions = AuthSessionManager(adjustableClock, Duration.ZERO)
         val attempt = sessions.beginSignIn()
         assertTrue(sessions.completeSignIn(attempt, grant(1)))
-        val advanced = AuthSessionManager(Clock.fixed(now.plusSeconds(2), ZoneOffset.UTC), Duration.ZERO)
-        // The second instance never inherits the token: tokens are process-local.
-        assertNull(advanced.accessToken())
+        assertEquals(LocalSessionStatus.ACTIVE, sessions.status())
+        adjustableClock.advanceSeconds(2)
+        assertNull(sessions.accessToken())
+        assertEquals(LocalSessionStatus.SIGNED_OUT, sessions.status())
     }
 
     @Test fun local_logout_invalidates_token_and_inflight_exchange() {
@@ -65,6 +75,23 @@ class AuthSessionManagerTest {
         val pending = sessions.beginSignIn()
         sessions.clearLocalSession()
         assertFalse(sessions.completeSignIn(pending, grant()))
+        assertNull(sessions.accessToken())
+    }
+
+    @Test fun completed_exchange_is_one_shot() {
+        val sessions = sessions()
+        val attempt = sessions.beginSignIn()
+        assertTrue(sessions.completeSignIn(attempt, grant()))
+        assertFalse(sessions.completeSignIn(attempt, AccessTokenGrant("attacker", now.epochSecond + 3600)))
+        sessions.failSignIn(attempt)
+        assertEquals("secret-token-do-not-log", sessions.accessToken())
+    }
+
+    @Test fun failed_exchange_cannot_be_replayed() {
+        val sessions = sessions()
+        val attempt = sessions.beginSignIn()
+        sessions.failSignIn(attempt)
+        assertFalse(sessions.completeSignIn(attempt, grant()))
         assertNull(sessions.accessToken())
     }
 
@@ -78,7 +105,7 @@ class AuthSessionManagerTest {
 
     @Test fun invalid_credentials_are_rejected_without_logging() {
         val sessions = sessions()
-        for (value in listOf("", "  ", "token with space", "token\nheader", "x".repeat(8193))) {
+        for (value in listOf("", "  ", "token with space", "token\nheader", "é", "x".repeat(8193))) {
             val attempt = sessions.beginSignIn()
             assertFalse(sessions.completeSignIn(attempt, AccessTokenGrant(value, now.epochSecond + 3600)))
             assertNull(sessions.accessToken())
