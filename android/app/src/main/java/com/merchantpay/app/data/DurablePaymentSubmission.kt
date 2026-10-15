@@ -1,6 +1,8 @@
 package com.merchantpay.app.data
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -19,18 +21,22 @@ class DurablePaymentSubmission(
 
     suspend fun submit(
         merchantId: String, requestId: String, amountMinor: Long
-    ): PaymentIntent = mutex.withLock {
-        val attempt = store.prepare(merchantId, requestId, amountMinor)
-        dispatch(attempt)
+    ): PaymentIntent = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val attempt = store.prepare(merchantId, requestId, amountMinor)
+            dispatch(attempt)
+        }
     }
 
     suspend fun retryExisting(
         merchantId: String, requestId: String
-    ): PaymentIntent = mutex.withLock {
-        val attempt = requireNotNull(store.find(merchantId, requestId)) {
-            "Cannot retry an unknown request with a new key"
+    ): PaymentIntent = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val attempt = requireNotNull(store.find(merchantId, requestId)) {
+                "Cannot retry an unknown request with a new key"
+            }
+            dispatch(attempt)
         }
-        dispatch(attempt)
     }
 
     /** Read-only recovery list. Does not perform network requests. */
@@ -53,10 +59,6 @@ class DurablePaymentSubmission(
             )
             store.acknowledge(attempt.merchantId, attempt.requestId, response)
             response
-        } catch (error: PaymentApiError.AuthenticationRequired) {
-            // No valid local token: the client fails before sending the request.
-            // Keep the durable attempt for explicit retry after re-authentication.
-            throw error
         } catch (cancelled: CancellationException) {
             store.markUncertain(attempt.merchantId, attempt.requestId)
             throw cancelled
